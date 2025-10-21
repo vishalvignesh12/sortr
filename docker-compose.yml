@@ -11,19 +11,32 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d parkwise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   backend:
     build:
-      context: ./backend/parkwise-fastapi/backend
+      context: ./parkwise-fastapi/backend
       dockerfile: Dockerfile.backend
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/parkwise
       - REDIS_URL=redis://redis:6379/0
@@ -34,16 +47,16 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/parkwise-fastapi/backend:/app
+      - ./parkwise-fastapi/backend:/app
 
   predictor:
     build:
-      context: ./backend/parkwise-fastapi/predictor
+      context: ./parkwise-fastapi/predictor
       dockerfile: Dockerfile.predictor
     environment:
       - MODEL_PATH=/models/xgb_model.joblib
     volumes:
-      - ./backend/parkwise-fastapi/predictor/models:/models
+      - ./parkwise-fastapi/predictor/models:/models
     ports:
       - "8080:8080"
 
