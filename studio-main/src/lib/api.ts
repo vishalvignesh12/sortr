@@ -13,7 +13,7 @@ import {
 
 // Backend API implementation
 import { apiClient } from '@/lib/http';
-import { BackendSlotStatus, BackendHoldRequest, BackendHoldResponse } from '@/lib/types';
+import { BackendSlotStatus, BackendHoldRequest, BackendHoldResponse, BackendPredictionResponse } from '@/lib/types';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 /**
@@ -129,7 +129,7 @@ export async function holdSlot(request: BackendHoldRequest): Promise<BackendHold
 /**
  * Get prediction for a parking slot - only available in backend implementation
  */
-export async function getSlotPrediction(slotId: string): Promise<any> {
+export async function getSlotPrediction(slotId: string): Promise<BackendPredictionResponse> {
   if (DATABASE_TYPE !== 'firebase') {
     try {
       const response = await apiClient.get(`/v1/predictions/${slotId}`);
