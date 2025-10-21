@@ -175,7 +175,7 @@ export async function loginUserFirebase(email: string, password: string): Promis
     const token = await user.getIdToken();
     
     return { user: userData, token };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Login error:', error);
     throw new Error(error.message || 'Failed to login');
   }
@@ -219,7 +219,7 @@ export async function registerUserFirebase(name: string, email: string, password
     });
     
     return { user: returnUser, token };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Registration error:', error);
     throw new Error(error.message || 'Failed to register');
   }
@@ -232,7 +232,7 @@ export async function logoutUserFirebase(): Promise<void> {
   try {
     const auth = getAuth();
     await signOut(auth);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Logout error:', error);
     throw new Error(error.message || 'Failed to logout');
   }
