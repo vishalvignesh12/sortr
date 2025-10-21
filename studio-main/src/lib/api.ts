@@ -132,7 +132,7 @@ export async function holdSlot(request: BackendHoldRequest): Promise<BackendHold
 export async function getSlotPrediction(slotId: string): Promise<BackendPredictionResponse> {
   if (DATABASE_TYPE !== 'firebase') {
     try {
-      const response = await apiClient.get(`/v1/predictions/${slotId}`);
+      const response = await apiClient.get<BackendPredictionResponse>(`/v1/predictions/${slotId}`);
       return response;
     } catch (error) {
       console.error(`Error getting prediction for slot ${slotId}:`, error);
