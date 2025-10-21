@@ -18,7 +18,7 @@ export class Logger {
     this.logLevel = level;
   }
 
-  public log(level: LogLevel, message: string, meta?: any) {
+  public log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
     const logLevels: Record<LogLevel, number> = {
       error: 0,
       warn: 1,
@@ -49,19 +49,19 @@ export class Logger {
     }
   }
 
-  public error(message: string, meta?: any) {
+  public error(message: string, meta?: Record<string, unknown>) {
     this.log('error', message, meta);
   }
 
-  public warn(message: string, meta?: any) {
+  public warn(message: string, meta?: Record<string, unknown>) {
     this.log('warn', message, meta);
   }
 
-  public info(message: string, meta?: any) {
+  public info(message: string, meta?: Record<string, unknown>) {
     this.log('info', message, meta);
   }
 
-  public debug(message: string, meta?: any) {
+  public debug(message: string, meta?: Record<string, unknown>) {
     this.log('debug', message, meta);
   }
 
@@ -95,7 +95,7 @@ export interface LogEntry {
   timestamp: Date;
   level: LogLevel;
   message: string;
-  meta?: any;
+  meta?: Record<string, unknown>;
 }
 
 // Predefined logger instance
