@@ -21,6 +21,19 @@ export interface BackendHoldResponse {
   hold_until: string; // ISO date string
 }
 
+export interface BackendPredictionResponse {
+  slot_id: string;
+  predicted_free_minutes: number;
+  prediction_confidence: number;
+  prediction_timestamp: string;
+  factors?: {
+    historical_pattern?: number;
+    current_occupancy?: number;
+    time_of_day?: number;
+    day_of_week?: number;
+  };
+}
+
 // Frontend types
 export interface ParkingSlot {
   id: string;

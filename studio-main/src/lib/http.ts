@@ -2,7 +2,7 @@ import { API_BASE_URL } from './config';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-  body?: any;
+  body?: unknown;
   headers?: Record<string, string>;
   token?: string;
 }
@@ -25,7 +25,7 @@ class HttpClient {
     // Use provided token or fallback to token from localStorage
     let authToken = token;
     if (!authToken) {
-      authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      authToken = typeof window !== 'undefined' ? (localStorage.getItem('token') || undefined) : undefined;
     }
 
     if (authToken) {
@@ -71,11 +71,11 @@ class HttpClient {
     return this.request<T>(endpoint, { method: 'GET', token });
   }
 
-  post<T>(endpoint: string, body?: any, token?: string) {
+  post<T>(endpoint: string, body?: unknown, token?: string) {
     return this.request<T>(endpoint, { method: 'POST', body, token });
   }
 
-  put<T>(endpoint: string, body?: any, token?: string) {
+  put<T>(endpoint: string, body?: unknown, token?: string) {
     return this.request<T>(endpoint, { method: 'PUT', body, token });
   }
 
@@ -83,7 +83,7 @@ class HttpClient {
     return this.request<T>(endpoint, { method: 'DELETE', token });
   }
 
-  patch<T>(endpoint: string, body?: any, token?: string) {
+  patch<T>(endpoint: string, body?: unknown, token?: string) {
     return this.request<T>(endpoint, { method: 'PATCH', body, token });
   }
 }
