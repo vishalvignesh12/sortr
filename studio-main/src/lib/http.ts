@@ -25,7 +25,7 @@ class HttpClient {
     // Use provided token or fallback to token from localStorage
     let authToken = token;
     if (!authToken) {
-      authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      authToken = typeof window !== 'undefined' ? (localStorage.getItem('token') || undefined) : undefined;
     }
 
     if (authToken) {
