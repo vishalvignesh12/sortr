@@ -1,4 +1,5 @@
 import type { ParkingSlot } from '@/lib/types';
+import type { BackendHoldResponse, BackendPredictionResponse } from '@/lib/types';
 import { getAllSlots as apiGetAllSlots, getSlotById as apiGetSlotById, holdSlot as apiHoldSlot, getSlotPrediction as apiGetSlotPrediction } from '@/lib/api';
 
 export const getSlots = async (): Promise<ParkingSlot[]> => {
@@ -64,22 +65,24 @@ export const getSlot = async (id: string): Promise<ParkingSlot | undefined> => {
   }
 };
 
-export const holdParkingSlot = async (slotId: string, holdMinutes: number = 2): Promise<any> => {
+export const holdParkingSlot = async (slotId: string, holdMinutes: number = 2): Promise<BackendHoldResponse> => {
   try {
     const response = await apiHoldSlot({ slot_id: slotId, hold_minutes: holdMinutes });
     return response;
   } catch (error) {
     console.error(`Error holding slot ${slotId}:`, error);
-    throw new Error(`Failed to hold parking slot ${slotId}. Please try again.`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to hold parking slot ${slotId}: ${errorMessage}`);
   }
 };
 
-export const getSlotPredictions = async (slotId: string): Promise<any> => {
+export const getSlotPredictions = async (slotId: string): Promise<BackendPredictionResponse> => {
   try {
     const prediction = await apiGetSlotPrediction(slotId);
     return prediction;
   } catch (error) {
     console.error(`Error getting prediction for slot ${slotId}:`, error);
-    throw new Error(`Failed to get prediction for slot ${slotId}. Please try again.`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to get prediction for slot ${slotId}: ${errorMessage}`);
   }
 };
