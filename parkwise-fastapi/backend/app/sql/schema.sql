@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE slots (
+CREATE TABLE IF NOT EXISTS slots (
     slot_id VARCHAR PRIMARY KEY,
     zone_id VARCHAR,
     polygon JSON,
@@ -9,7 +9,7 @@ CREATE TABLE slots (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE slot_status (
+CREATE TABLE IF NOT EXISTS slot_status (
     slot_id VARCHAR PRIMARY KEY REFERENCES slots(slot_id),
     occupied BOOLEAN DEFAULT FALSE,
     confidence FLOAT DEFAULT 1.0,
@@ -21,7 +21,7 @@ CREATE TABLE slot_status (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE slot_events (
+CREATE TABLE IF NOT EXISTS slot_events (
     id SERIAL PRIMARY KEY,
     slot_id VARCHAR NOT NULL,
     event_type VARCHAR,
@@ -29,7 +29,7 @@ CREATE TABLE slot_events (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE bookings (
+CREATE TABLE IF NOT EXISTS bookings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID,
     slot_id VARCHAR NOT NULL,
