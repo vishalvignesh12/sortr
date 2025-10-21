@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Slot Calibration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-section {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .image-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        #parkingImage {
+            max-width: 100%;
+            border: 2px solid #ddd;
+            display: none;
+        }
+        .calibration-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f0f8ff;
+            border-radius: 4px;
+        }
+        .slot-list {
+            margin-top: 20px;
+        }
+        .slot-item {
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.delete {
+            background-color: #f44336;
+        }
+        button.delete:hover {
+            background-color: #da190b;
+        }
+        .coordinates-display {
+            font-family: monospace;
+            background-color: #f0f0f0;
+            padding: 5px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .instructions {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Parking Slot Calibration Tool</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Upload a parking lot image using the button below</li>
+                <li>Click on the image to set the top-left corner of a parking slot</li>
+                <li>Click again to set the bottom-right corner of the same slot</li>
+                <li>Enter a unique slot ID and click "Save Slot Calibration"</li>
+                <li>Repeat for all parking slots in the image</li>
+                <li>Use "Save All Calibrations" to save all defined slots</li>
+            </ol>
+        </div>
+
+        <div class="upload-section">
+            <input type="file" id="imageUpload" accept="image/*">
+            <button onclick="loadImage()">Load Image</button>
+        </div>
+
+        <div class="image-container">
+            <img id="parkingImage" alt="Parking Lot Image">
+        </div>
+
+        <div id="calibrationStatus"></div>
+
+        <div class="calibration-info" id="calibrationInfo" style="display: none;">
+            <h3>Slot Calibration</h3>
+            <p>Click on the image to define a parking slot area:</p>
+            <div id="coordinatesDisplay" class="coordinates-display" style="display: none;"></div>
+            <p>Slot ID: <input type="text" id="slotId" placeholder="e.g., A001"></p>
+            <button onclick="saveSlot()">Save Slot Calibration</button>
+        </div>
+
+        <div class="slot-list">
+            <h3>Defined Slots</h3>
+            <div id="slotsContainer"></div>
+            <button onclick="saveAllCalibrations()" id="saveAllBtn" style="display: none;">Save All Calibrations</button>
+            <button onclick="clearAllCalibrations()">Clear All</button>
+        </div>
+    </div>
+
+    <script>
+        let parkingImage = document.getElementById('parkingImage');
+        let imageUpload = document.getElementById('imageUpload');
+        let calibrationInfo = document.getElementById('calibrationInfo');
+        let coordinatesDisplay = document.getElementById('coordinatesDisplay');
+        let slotsContainer = document.getElementById('slotsContainer');
+        let calibrationStatus = document.getElementById('calibrationStatus');
+        let saveAllBtn = document.getElementById('saveAllBtn');
+
+        let isSelectingFirstPoint = true;
+        let firstPoint = null;
+        let definedSlots = [];
+
+        // Load image when selected
+        function loadImage() {
+            if (imageUpload.files && imageUpload.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    parkingImage.src = e.target.result;
+                    parkingImage.style.display = 'block';
+                    calibrationInfo.style.display = 'block';
+                    calibrationStatus.innerHTML = '';
+                    resetCalibrationState();
+                }
+                
+                reader.readAsDataURL(imageUpload.files[0]);
+            }
+        }
+
+        // Reset calibration state
+        function resetCalibrationState() {
+            isSelectingFirstPoint = true;
+            firstPoint = null;
+            definedSlots = [];
+            slotsContainer.innerHTML = '';
+            saveAllBtn.style.display = 'none';
+            coordinatesDisplay.style.display = 'none';
+        }
+
+        // Handle image click for slot definition
+        parkingImage.addEventListener('click', function(e) {
+            const rect = parkingImage.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+
+            if (isSelectingFirstPoint) {
+                firstPoint = { x, y };
+                isSelectingFirstPoint = false;
+                coordinatesDisplay.textContent = `Top-Left: (${x}, ${y}) - Click bottom-right`;
+                coordinatesDisplay.style.display = 'inline-block';
+            } else {
+                // Calculate width and height
+                const width = Math.abs(x - firstPoint.x);
+                const height = Math.abs(y - firstPoint.y);
+                
+                // Ensure we have the top-left coordinates
+                const topLeftX = Math.min(firstPoint.x, x);
+                const topLeftY = Math.min(firstPoint.y, y);
+                
+                coordinatesDisplay.textContent = `Slot Area: (${topLeftX}, ${topLeftY}, ${width}, ${height})`;
+                
+                isSelectingFirstPoint = true;
+            }
+        });
+
+        // Save individual slot
+        function saveSlot() {
+            if (!firstPoint) {
+                showStatus('Please click on the image to define the slot area first.', 'error');
+                return;
+            }
+
+            const rect = parkingImage.getBoundingClientRect();
+            const scaleX = parkingImage.naturalWidth / rect.width;
+            const scaleY = parkingImage.naturalHeight / rect.height;
+
+            // Calculate real coordinates
+            const secondPoint = {
+                x: Math.round(firstPoint.x + 10), // temporary, we'll implement proper second point later
+                y: Math.round(firstPoint.y + 10)  // temporary
+            };
+
+            // For now, let's assume the current position represents one corner
+            // and the user has to click again to define the rectangle
+            if (isSelectingFirstPoint) {
+                showStatus('Please define the bottom-right corner of the slot first.', 'error');
+                return;
+            }
+
+            // Calculate width and height in original image coordinates
+            const width = Math.abs(secondPoint.x - firstPoint.x) * scaleX;
+            const height = Math.abs(secondPoint.y - firstPoint.y) * scaleY;
+            const x = Math.min(firstPoint.x, secondPoint.x) * scaleX;
+            const y = Math.min(firstPoint.y, secondPoint.y) * scaleY;
+
+            const slotId = document.getElementById('slotId').value.trim();
+            if (!slotId) {
+                showStatus('Please enter a slot ID.', 'error');
+                return;
+            }
+
+            // Check if slot ID already exists
+            if (definedSlots.some(slot => slot.id === slotId)) {
+                showStatus('Slot ID already exists. Please use a unique ID.', 'error');
+                return;
+            }
+
+            // Add to defined slots
+            definedSlots.push({
+                id: slotId,
+                x: Math.round(x),
+                y: Math.round(y),
+                width: Math.round(width),
+                height: Math.round(height)
+            });
+
+            // Update display
+            updateSlotsDisplay();
+            saveAllBtn.style.display = 'inline-block';
+
+            // Reset for next slot
+            document.getElementById('slotId').value = '';
+            firstPoint = null;
+            isSelectingFirstPoint = true;
+            coordinatesDisplay.style.display = 'none';
+
+            showStatus(`Slot ${slotId} defined successfully!`, 'success');
+        }
+
+        // Update slots display
+        function updateSlotsDisplay() {
+            slotsContainer.innerHTML = '';
+            definedSlots.forEach((slot, index) => {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'slot-item';
+                slotDiv.innerHTML = `
+                    <div>
+                        <strong>${slot.id}</strong>: (${slot.x}, ${slot.y}, ${slot.width}, ${slot.height})
+                    </div>
+                    <button class="delete" onclick="deleteSlot(${index})">Delete</button>
+                `;
+                slotsContainer.appendChild(slotDiv);
+            });
+        }
+
+        // Delete a slot
+        function deleteSlot(index) {
+            definedSlots.splice(index, 1);
+            updateSlotsDisplay();
+            if (definedSlots.length === 0) {
+                saveAllBtn.style.display = 'none';
+            }
+        }
+
+        // Clear all calibrations
+        function clearAllCalibrations() {
+            resetCalibrationState();
+            showStatus('All calibrations cleared.', 'success');
+        }
+
+        // Save all calibrations to backend
+        function saveAllCalibrations() {
+            if (definedSlots.length === 0) {
+                showStatus('No slots defined to save.', 'error');
+                return;
+            }
+
+            // Create FormData for each slot and send to backend
+            definedSlots.forEach(slot => {
+                const formData = new FormData();
+                formData.append('slot_id', slot.id);
+                formData.append('x', slot.x);
+                formData.append('y', slot.y);
+                formData.append('width', slot.width);
+                formData.append('height', slot.height);
+                
+                // In a real implementation, you would also need to send the image file
+                // For now, we'll just show what would be sent
+                
+                fetch('/cv/calibrate-slot', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        // Add authorization header if needed
+                        // 'Authorization': 'Bearer ' + getAuthToken()
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Slot ${slot.id} calibrated:`, data);
+                    showStatus(`All ${definedSlots.length} slots calibrated successfully!`, 'success');
+                })
+                .catch(error => {
+                    console.error('Error calibrating slot:', error);
+                    showStatus(`Error calibrating slot ${slot.id}: ${error.message}`, 'error');
+                });
+            });
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            calibrationStatus.innerHTML = `<div class="status ${type}">${message}</div>`;
+            
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    calibrationStatus.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        // Improved slot definition - allow user to visually see the rectangle being drawn
+        let dragStart = null;
+        let rectangle = null;
+
+        parkingImage.addEventListener('mousedown', function(e) {
+            if (!parkingImage.src) return;
+
+            const rect = parkingImage.getBoundingClientRect();
+            dragStart = {
+                x: Math.round(e.clientX - rect.left),
+                y: Math.round(e.clientY - rect.top)
+            };
+
+            // Create temporary rectangle to show the selection
+            if (rectangle) {
+                parkingImage.parentElement.removeChild(rectangle);
+            }
+
+            rectangle = document.createElement('div');
+            rectangle.style.position = 'absolute';
+            rectangle.style.border = '2px dashed red';
+            rectangle.style.pointerEvents = 'none';
+            rectangle.style.left = dragStart.x + 'px';
+            rectangle.style.top = dragStart.y + 'px';
+            rectangle.style.width = '0px';
+            rectangle.style.height = '0px';
+            parkingImage.parentElement.style.position = 'relative';
+            parkingImage.parentElement.appendChild(rectangle);
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragStart || !rectangle) return;
+
+            const rect = parkingImage.getBoundingClientRect();
+            const currentX = Math.round(e.clientX - rect.left);
+            const currentY = Math.round(e.clientY - rect.top);
+
+            const width = currentX - dragStart.x;
+            const height = currentY - dragStart.y;
+
+            if (width >= 0) {
+                rectangle.style.left = dragStart.x + 'px';
+                rectangle.style.width = width + 'px';
+            } else {
+                rectangle.style.left = currentX + 'px';
+                rectangle.style.width = Math.abs(width) + 'px';
+            }
+
+            if (height >= 0) {
+                rectangle.style.top = dragStart.y + 'px';
+                rectangle.style.height = height + 'px';
+            } else {
+                rectangle.style.top = currentY + 'px';
+                rectangle.style.height = Math.abs(height) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (!dragStart || !rectangle) return;
+
+            // Store the rectangle coordinates
+            firstPoint = {
+                x: parseInt(rectangle.style.left),
+                y: parseInt(rectangle.style.top)
+            };
+            const width = parseInt(rectangle.style.width);
+            const height = parseInt(rectangle.style.height);
+
+            coordinatesDisplay.textContent = `Selected: (${firstPoint.x}, ${firstPoint.y}, ${width}, ${height}) - Enter Slot ID and Save`;
+            coordinatesDisplay.style.display = 'inline-block';
+
+            // Remove the rectangle
+            rectangle.parentElement.removeChild(rectangle);
+            rectangle = null;
+
+            // Set to second point selection mode
+            isSelectingFirstPoint = false;
+
+            dragStart = null;
+        });
+    </script>
+</body>
+</html>

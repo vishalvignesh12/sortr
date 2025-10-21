@@ -1,0 +1,16 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Force the deploy keys to be text and not normalized
+deploy_key text eol=lf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.exe binary
+*.dll binary

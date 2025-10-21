@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: parkwise
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend/parkwise-fastapi/backend
+      dockerfile: Dockerfile.backend
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/parkwise
+      - REDIS_URL=redis://redis:6379/0
+      - EDGE_API_KEY=changeme
+      - PREDICTOR_URL=http://predictor:8080
+      - HOST=0.0.0.0
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/parkwise-fastapi/backend:/app
+
+  predictor:
+    build:
+      context: ./backend/parkwise-fastapi/predictor
+      dockerfile: Dockerfile.predictor
+    environment:
+      - MODEL_PATH=/models/xgb_model.joblib
+    volumes:
+      - ./backend/parkwise-fastapi/predictor/models:/models
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./studio-main
+      dockerfile: Dockerfile
+      target: runner
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
+    volumes:
+      - ./studio-main:/app
+      - /app/node_modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  pgdata:

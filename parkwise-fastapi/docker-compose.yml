@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: parkwise
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/parkwise
+      - REDIS_URL=redis://redis:6379/0
+      - PREDICTOR_URL=http://predictor:8080
+    ports:
+      - "8000:8000"
+
+  predictor:
+    build:
+      context: ./predictor
+      dockerfile: Dockerfile.predictor
+    environment:
+      - MODEL_PATH=/models/xgb_model.joblib
+    volumes:
+      - ./predictor/models:/models
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
