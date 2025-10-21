@@ -6,15 +6,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Settings, Database, Users, Car, BarChart2 } from 'lucide-react';
 import { initializeParkingSlots } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
 
 export default function AdminPage() {
   const handleInitializeSlots = async () => {
     try {
       await initializeParkingSlots();
-      alert('Parking slots initialized successfully!');
+      toast({ title: "Success", description: "Parking slots initialized successfully!" });
     } catch (error) {
       console.error('Error initializing slots:', error);
-      alert('Failed to initialize parking slots. Check console for details.');
+      toast({ 
+        title: "Error", 
+        description: "Failed to initialize parking slots. Please try again.", 
+        variant: "destructive" 
+      });
     }
   };
 
