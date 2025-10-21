@@ -177,7 +177,7 @@ export async function loginUserFirebase(email: string, password: string): Promis
     return { user: userData, token };
   } catch (error) {
     console.error('Login error:', error);
-    throw new Error(error.message || 'Failed to login');
+    throw new Error((error as Error).message || 'Failed to login');
   }
 }
 
@@ -221,7 +221,7 @@ export async function registerUserFirebase(name: string, email: string, password
     return { user: returnUser, token };
   } catch (error) {
     console.error('Registration error:', error);
-    throw new Error(error.message || 'Failed to register');
+    throw new Error((error as Error).message || 'Failed to register');
   }
 }
 
@@ -234,6 +234,6 @@ export async function logoutUserFirebase(): Promise<void> {
     await signOut(auth);
   } catch (error) {
     console.error('Logout error:', error);
-    throw new Error(error.message || 'Failed to logout');
+    throw new Error((error as Error).message || 'Failed to logout');
   }
 }
