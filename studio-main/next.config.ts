@@ -33,13 +33,6 @@ const nextConfig: NextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
-  webpack: (config) => {
-    config.module.rules.push({
-      test: /\.(js|jsx|ts|tsx)$/,
-      use: ['babel-loader'],
-    });
-    return config;
-  },
 };
 
 export default nextConfig;
