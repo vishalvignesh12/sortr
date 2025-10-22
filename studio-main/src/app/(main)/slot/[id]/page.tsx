@@ -8,13 +8,14 @@ import { Car, Clock, Calendar, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface SlotPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function SlotPage({ params }: SlotPageProps) {
-  const slot = await getSlot(params.id);
+  const { id } = await params;
+  const slot = await getSlot(id);
 
   if (!slot) {
     notFound();
