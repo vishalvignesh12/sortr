@@ -8,6 +8,11 @@ from typing import List, Tuple, Dict, Optional
 import asyncio
 from datetime import datetime
 import logging
+from . import anpr_processor
+from . import violation_detector
+from .models import vehicle_plates
+from sqlalchemy import select, insert, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 class ParkingSpotDetector:
     """
@@ -77,11 +82,13 @@ class ParkingSpotDetector:
                     
                     if cls in self.vehicle_classes and conf > 0.5:  # Only if confidence > 0.5
                         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        bbox = [int(x1), int(y1), int(x2), int(y2)]
                         detections.append({
                             'class_id': cls,
                             'confidence': conf,
-                            'bbox': [int(x1), int(y1), int(x2), int(y2)],
-                            'center': ((x1 + x2) / 2, (y1 + y2) / 2)
+                            'bbox': bbox,
+                            'center': ((x1 + x2) / 2, (y1 + y2) / 2),
+                            'vehicle_type': {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}.get(cls, "vehicle")
                         })
         
         return detections
@@ -189,10 +196,11 @@ class ParkingSpotDetector:
         
         # Fetch spot configuration from database
         from sqlalchemy import select
-        from ..db import get_session
-        from .. import models
+        from .db import get_session
+        from . import models
         
         spot_info = None
+        zone_id = None
         async for session in get_session():
             slot_result = await session.execute(
                 select(models.slots).where(models.slots.c.slot_id == spot_id)
@@ -205,6 +213,7 @@ class ParkingSpotDetector:
                     'polygon': slot.polygon,
                     'active': True
                 }
+                zone_id = slot.zone_id
             
             break  # Exit session loop
         
@@ -224,11 +233,134 @@ class ParkingSpotDetector:
             # If no vehicle detected in spot, confidence is based on absence
             confidence = max(0.8, 1.0 - (len(detections) * 0.05))  # Lower confidence if many vehicles nearby
         
+        # ANPR processing: Extract license plate if vehicle is present
+        license_plate_data = None
+        detected_plate = None
+        
+        if occupied and anpr_processor.is_anpr_enabled() and len(detections) > 0:
+            # Find the detection that corresponds to this spot
+            for detection in detections:
+                center_x, center_y = detection['center']
+                if self._is_point_in_polygon(center_x, center_y, spot_info['polygon']):
+                    # This vehicle is in our spot - try to extract plate
+                    plate_result = anpr_processor.process_vehicle_for_plate(
+                        vehicle_bbox=detection['bbox'],
+                        full_image=frame,
+                        vehicle_type=detection['vehicle_type'],
+                        slot_id=spot_id
+                    )
+                    
+                    if plate_result:
+                        license_plate_data = plate_result
+                        detected_plate = plate_result['license_plate']
+                        
+                        # Save plate image to disk
+                        image_path = anpr_processor.save_plate_image(
+                            plate_result['plate_image_crop'],
+                            detected_plate
+                        )
+                        
+                        # Store/update plate in database
+                        async for session in get_session():
+                            try:
+                                # Check if this plate already exists with status='active'
+                                existing_plate = await session.execute(
+                                    select(vehicle_plates).where(
+                                        vehicle_plates.c.license_plate == detected_plate,
+                                        vehicle_plates.c.status == 'active'
+                                    )
+                                )
+                                existing = existing_plate.fetchone()
+                                
+                                if existing:
+                                    # Update last_seen timestamp
+                                    await session.execute(
+                                        update(vehicle_plates)
+                                        .where(vehicle_plates.c.id == existing.id)
+                                        .values(
+                                            last_seen=datetime.utcnow(),
+                                            updated_at=datetime.utcnow()
+                                        )
+                                    )
+                                    self.logger.info(f"Updated existing plate: {detected_plate}")
+                                else:
+                                    # Insert new vehicle_plates record
+                                    await session.execute(
+                                        insert(vehicle_plates).values(
+                                            license_plate=detected_plate,
+                                            slot_id=spot_id,
+                                            zone_id=zone_id,
+                                            vehicle_type=vehicle_type,
+                                            confidence=plate_result['confidence'],
+                                            first_seen=datetime.utcnow(),
+                                            last_seen=datetime.utcnow(),
+                                            status='active',
+                                            image_path=image_path
+                                        )
+                                    )
+                                    self.logger.info(f"Inserted new plate: {detected_plate} in slot {spot_id}")
+                                
+                                await session.commit()
+                                
+                            except Exception as e:
+                                self.logger.error(f"Error storing plate data: {str(e)}")
+                                await session.rollback()
+                            
+                            break  # Exit session loop
+                    
+                    break  # Only process the first vehicle in the spot
+        
+        # Violation detection: Check for parking violations
+        detected_violations = []
+        if occupied:
+            # Detect violations for this slot
+            async for session in get_session():
+                try:
+                    slot_data = {
+                        'occupied': occupied,
+                        'vehicle_type': vehicle_type,
+                        'license_plate': detected_plate,
+                        'zone_id': zone_id
+                    }
+                    
+                    violations = await violation_detector.detect_all_violations_for_slot(
+                        spot_id, slot_data, session
+                    )
+                    
+                    for violation_dict in violations:
+                        violation_record = await violation_detector.record_violation(
+                            violation_dict, session
+                        )
+                        
+                        if violation_record and violation_record.get('is_new'):
+                            detected_violations.append(violation_record)
+                            self.logger.info(f"New violation detected: {violation_record['violation_type']} in slot {spot_id}")
+                    
+                except Exception as e:
+                    self.logger.error(f"Error detecting violations: {str(e)}")
+                
+                break  # Exit session loop
+        else:
+            # Slot is vacant - auto-resolve any active violations
+            async for session in get_session():
+                try:
+                    resolved_count = await violation_detector.auto_resolve_violations_for_slot(
+                        spot_id, session
+                    )
+                    if resolved_count > 0:
+                        self.logger.info(f"Auto-resolved {resolved_count} violations for slot {spot_id}")
+                except Exception as e:
+                    self.logger.error(f"Error auto-resolving violations: {str(e)}")
+                
+                break  # Exit session loop
+        
         return {
             'slot_id': spot_id,
             'occupied': occupied,
             'confidence': round(float(confidence), 2),
             'vehicle_type': vehicle_type,
+            'license_plate': detected_plate,
+            'violations': detected_violations,
             'timestamp': datetime.utcnow().isoformat(),
             'detection_count': len(detections),
             'detection_details': detections

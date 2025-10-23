@@ -158,3 +158,33 @@ export async function registerUser(userData: RegisterData): Promise<{ user: User
   // Both implementations use Firebase Auth for user authentication
   return registerUserFirebase(userData.name, userData.email, userData.password);
 }
+
+/**
+ * Search for a vehicle by license plate - only available in backend implementation
+ */
+export async function searchVehicleByPlate(licensePlate: string) {
+  if (DATABASE_TYPE !== 'firebase') {
+    try {
+      const normalized = licensePlate.toUpperCase().trim();
+      const response = await apiClient.get(`/v1/anpr/plates/${normalized}`);
+      
+      return {
+        licensePlate: response.license_plate,
+        slotId: response.slot_id,
+        zoneId: response.zone_id,
+        vehicleType: response.vehicle_type,
+        firstSeen: new Date(response.first_seen),
+        lastSeen: new Date(response.last_seen),
+        status: response.status
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null; // Vehicle not found
+      }
+      console.error(`Error searching for vehicle ${licensePlate}:`, error);
+      throw new Error(`Failed to search for vehicle`);
+    }
+  } else {
+    throw new Error('Vehicle locator is only available with backend database');
+  }
+}

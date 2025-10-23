@@ -106,3 +106,64 @@ async def notify_system_alert(message: str, level: str = "info"):
         "timestamp": asyncio.get_event_loop().time()
     }
     await manager.broadcast(alert)
+
+# Function to notify about license plate detection
+async def notify_plate_detected(license_plate: str, slot_id: str, zone_id: str, vehicle_type: str, confidence: float):
+    """Notify admin clients about a new license plate detection"""
+    message = {
+        "type": "plate_detected",
+        "data": {
+            "license_plate": license_plate,
+            "slot_id": slot_id,
+            "zone_id": zone_id,
+            "vehicle_type": vehicle_type,
+            "confidence": confidence
+        },
+        "timestamp": asyncio.get_event_loop().time()
+    }
+    
+    # Send to admin connections only
+    await manager.send_to_type(message, "admin")
+    
+    # Also send to dashboard connections
+    await manager.send_to_type(message, "dashboard")
+
+# Function to notify about violation detection
+async def notify_violation_detected(violation: dict):
+    """Notify admin clients and affected users about a new violation"""
+    message = {
+        "type": "violation_detected",
+        "data": violation,
+        "timestamp": asyncio.get_event_loop().time()
+    }
+    
+    # Send to admin connections
+    await manager.send_to_type(message, "admin")
+    
+    # Send to dashboard connections
+    await manager.send_to_type(message, "dashboard")
+    
+    # If violation has booking_id, notify the specific user
+    if violation.get('booking_id'):
+        # Note: Would need user_id to send to specific user connection
+        # For now, broadcast to all user connections
+        await manager.send_to_type(message, "user")
+
+# Function to notify about violation resolution
+async def notify_violation_resolved(violation_id: str, resolved_by: str):
+    """Notify about violation resolution"""
+    message = {
+        "type": "violation_resolved",
+        "data": {
+            "violation_id": violation_id,
+            "resolved_by": resolved_by,
+            "resolved_at": asyncio.get_event_loop().time()
+        },
+        "timestamp": asyncio.get_event_loop().time()
+    }
+    
+    # Send to admin connections
+    await manager.send_to_type(message, "admin")
+    
+    # Send to dashboard connections
+    await manager.send_to_type(message, "dashboard")
