@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Table, Column, String, Boolean, Integer, TIMESTAMP, JSON, text, MetaData
+    Table, Column, String, Boolean, Integer, TIMESTAMP, JSON, text, MetaData, Index
 )
 from sqlalchemy.dialects.postgresql import UUID
 import sqlalchemy as sa
@@ -62,9 +62,32 @@ slot_events = Table(
     Column('slot_id', String, nullable=False),
     Column('event_type', String),
     Column('meta', JSON),
+    Column('license_plate', String(20), nullable=True),  # Added for ANPR tracking
     Column('created_at', TIMESTAMP, server_default=text('now()')),
     Column('source', String, default='camera'),  # 'camera', 'user', 'system'
 )
+
+vehicle_plates = Table(
+    'vehicle_plates', metadata,
+    Column('id', UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()')),
+    Column('license_plate', String(20), nullable=False),
+    Column('slot_id', String, nullable=False),
+    Column('zone_id', String, nullable=True),
+    Column('vehicle_type', String, nullable=True),  # car, motorcycle, bus, truck
+    Column('confidence', sa.Float, nullable=False),  # OCR confidence score
+    Column('first_seen', TIMESTAMP, server_default=text('now()')),
+    Column('last_seen', TIMESTAMP, server_default=text('now()')),
+    Column('status', String, nullable=False, default='active'),  # 'active', 'exited'
+    Column('image_path', String, nullable=True),  # Cropped plate image path
+    Column('created_at', TIMESTAMP, server_default=text('now()')),
+    Column('updated_at', TIMESTAMP, server_default=text('now()')),
+)
+
+# Indexes for vehicle_plates table
+Index('idx_vehicle_plates_license_plate', vehicle_plates.c.license_plate)
+Index('idx_vehicle_plates_status', vehicle_plates.c.status)
+Index('idx_vehicle_plates_slot_id', vehicle_plates.c.slot_id)
+Index('idx_vehicle_plates_license_status', vehicle_plates.c.license_plate, vehicle_plates.c.status)
 
 bookings = Table(
     'bookings', metadata,
@@ -100,6 +123,35 @@ notifications = Table(
     Column('is_read', Boolean, default=False),
     Column('sent_at', TIMESTAMP, server_default=text('now()')),
 )
+
+violations = Table(
+    'violations', metadata,
+    Column('id', UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()')),
+    Column('violation_type', String, nullable=False),  # 'overstay', 'wrong_vehicle_type', 'unauthorized'
+    Column('slot_id', String, nullable=False),
+    Column('zone_id', String, nullable=True),
+    Column('license_plate', String(20), nullable=True),  # From ANPR detection
+    Column('vehicle_type', String, nullable=True),  # Detected vehicle type
+    Column('expected_vehicle_type', String, nullable=True),  # For wrong_vehicle_type violations
+    Column('booking_id', UUID(as_uuid=True), nullable=True),  # Link to booking for overstay
+    Column('severity', String, nullable=False),  # 'low', 'medium', 'high'
+    Column('status', String, nullable=False, default='active'),  # 'active', 'resolved', 'dismissed'
+    Column('detected_at', TIMESTAMP, server_default=text('now()')),
+    Column('resolved_at', TIMESTAMP, nullable=True),
+    Column('resolved_by', UUID(as_uuid=True), nullable=True),  # Admin who resolved
+    Column('resolution_notes', String, nullable=True),
+    Column('notification_sent', Boolean, default=False),
+    Column('metadata', JSON, nullable=True),  # Additional context
+    Column('created_at', TIMESTAMP, server_default=text('now()')),
+    Column('updated_at', TIMESTAMP, server_default=text('now()')),
+)
+
+# Indexes for violations table
+Index('idx_violations_status', violations.c.status)
+Index('idx_violations_slot_id', violations.c.slot_id)
+Index('idx_violations_license_plate', violations.c.license_plate)
+Index('idx_violations_status_detected', violations.c.status, violations.c.detected_at)
+Index('idx_violations_type', violations.c.violation_type)
 
 audit_logs = Table(
     'audit_logs', metadata,
