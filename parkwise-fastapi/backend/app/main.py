@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from .routes import bookings, predictions, auth, users, payments, notifications, admin, api_keys, export, geolocation, backup, cv_routes, edge, anpr
+from .routes import bookings, predictions, auth, users, payments, notifications, admin, api_keys, export, geolocation, backup, cv_routes, edge, anpr, violations
 from .worker import prediction_consumer, start_workers
 from .core import settings
 from .middleware import logging_middleware
@@ -92,6 +92,7 @@ app.include_router(backup.router)
 app.include_router(cv_routes.router)
 app.include_router(edge.router)
 app.include_router(anpr.router)
+app.include_router(violations.router)
 
 # WebSocket endpoint
 @app.websocket("/ws/{connection_type}")
