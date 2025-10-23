@@ -106,3 +106,24 @@ async def notify_system_alert(message: str, level: str = "info"):
         "timestamp": asyncio.get_event_loop().time()
     }
     await manager.broadcast(alert)
+
+# Function to notify about license plate detection
+async def notify_plate_detected(license_plate: str, slot_id: str, zone_id: str, vehicle_type: str, confidence: float):
+    """Notify admin clients about a new license plate detection"""
+    message = {
+        "type": "plate_detected",
+        "data": {
+            "license_plate": license_plate,
+            "slot_id": slot_id,
+            "zone_id": zone_id,
+            "vehicle_type": vehicle_type,
+            "confidence": confidence
+        },
+        "timestamp": asyncio.get_event_loop().time()
+    }
+    
+    # Send to admin connections only
+    await manager.send_to_type(message, "admin")
+    
+    # Also send to dashboard connections
+    await manager.send_to_type(message, "dashboard")
