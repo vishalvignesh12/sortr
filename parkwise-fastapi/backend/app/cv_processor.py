@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime
 import logging
 from . import anpr_processor
+from . import violation_detector
 from .models import vehicle_plates
 from sqlalchemy import select, insert, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -309,12 +310,57 @@ class ParkingSpotDetector:
                     
                     break  # Only process the first vehicle in the spot
         
+        # Violation detection: Check for parking violations
+        detected_violations = []
+        if occupied:
+            # Detect violations for this slot
+            async for session in get_session():
+                try:
+                    slot_data = {
+                        'occupied': occupied,
+                        'vehicle_type': vehicle_type,
+                        'license_plate': detected_plate,
+                        'zone_id': zone_id
+                    }
+                    
+                    violations = await violation_detector.detect_all_violations_for_slot(
+                        spot_id, slot_data, session
+                    )
+                    
+                    for violation_dict in violations:
+                        violation_record = await violation_detector.record_violation(
+                            violation_dict, session
+                        )
+                        
+                        if violation_record and violation_record.get('is_new'):
+                            detected_violations.append(violation_record)
+                            self.logger.info(f"New violation detected: {violation_record['violation_type']} in slot {spot_id}")
+                    
+                except Exception as e:
+                    self.logger.error(f"Error detecting violations: {str(e)}")
+                
+                break  # Exit session loop
+        else:
+            # Slot is vacant - auto-resolve any active violations
+            async for session in get_session():
+                try:
+                    resolved_count = await violation_detector.auto_resolve_violations_for_slot(
+                        spot_id, session
+                    )
+                    if resolved_count > 0:
+                        self.logger.info(f"Auto-resolved {resolved_count} violations for slot {spot_id}")
+                except Exception as e:
+                    self.logger.error(f"Error auto-resolving violations: {str(e)}")
+                
+                break  # Exit session loop
+        
         return {
             'slot_id': spot_id,
             'occupied': occupied,
             'confidence': round(float(confidence), 2),
             'vehicle_type': vehicle_type,
             'license_plate': detected_plate,
+            'violations': detected_violations,
             'timestamp': datetime.utcnow().isoformat(),
             'detection_count': len(detections),
             'detection_details': detections
